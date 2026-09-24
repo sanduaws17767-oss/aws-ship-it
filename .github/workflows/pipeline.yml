@@ -42,12 +42,7 @@ jobs:
       - uses: aws-actions/setup-sam@v3
         with:
           use-installer: true
-      - name: Debug OIDC token (temporary)
-        run: |
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
-          python3 -c "import sys,json,base64; p=sys.argv[1].split('.')[1]; p+='='*(-len(p)%4); c=json.loads(base64.urlsafe_b64decode(p)); print(json.dumps({k:c.get(k) for k in ['iss','aud','sub']}, indent=2))" "$TOKEN"
-          aws sts assume-role-with-web-identity --role-arn "${{ vars.AWS_DEPLOY_ROLE_ARN }}" --role-session-name debug --web-identity-token "$TOKEN" --region eu-west-2 --query 'AssumedRoleUser.Arn' || true 
-      - uses: aws-actions/configure-aws-credentials@v6
+      - 
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: eu-west-2
