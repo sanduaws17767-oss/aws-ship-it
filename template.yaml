@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Bill Guard backend as code - Project 3 Ship It
+
+Parameters:
+  Stage:
+    Type: String
+    AllowedValues: [staging, production]
+    Default: staging
+  AlertEmail:
+    Type: String
+    Description: Email address that receives alarm notifications
+
+Globals:
+  Function:
+    Runtime: python3.14
+    Timeout: 10
+    MemorySize: 128
+
+Resources:
+  StatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub billguard-${Stage}-stats
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: statId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: statId
+          KeyType: HASH
+
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/billguard-${Stage}-calculate
+      RetentionInDays: 14
+
+  BillGuardFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: FunctionLogGroup
+    Properties:
+      FunctionName: !Sub billguard-${Stage}-calculate
+      CodeUri: src/
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref StatsTable
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref StatsTable
+      Events:
+        Calculate:
+          Type: HttpApi
+          Properties:
+            Path: /calculate
+            Method: POST
+            
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub billguard-${Stage}-alerts
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub billguard-${Stage}-errors
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref BillGuardFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertTopic
+
+Outputs:
+  ApiUrl:
+    Value: !Sub https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  FunctionName:
+    Value: !Ref BillGuardFunction
+  TableName:
+    Value: !Ref StatsTable
