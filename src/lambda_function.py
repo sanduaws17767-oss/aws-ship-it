@@ -1,11 +1,12 @@
 import json
+import os
 
 import boto3
 
 from bill_rules import assess
 
 dynamodb = boto3.resource("dynamodb")
-stats_table = dynamodb.Table("billguard-stats")
+stats_table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 def lambda_handler(event, context):
     body = json.loads(event["body"])
