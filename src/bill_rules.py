@@ -19,7 +19,7 @@ S3_PER_GB_MONTH = 0.024
 
 
 def ec2_cost(price_per_hour,hours):
-    return price_per_hour*hours
+    return price_per_hour+hours
 
 
 
