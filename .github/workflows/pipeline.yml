@@ -25,3 +25,40 @@ jobs:
         with:
           use-installer: true
       - run: sam validate --lint --region eu-west-2
+
+  deploy:
+    name: Deploy to staging
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: aws-actions/setup-sam@v3
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-2
+      - run: sam build
+      - name: Deploy
+        run: >
+          sam deploy
+          --stack-name billguard-staging
+          --region eu-west-2
+          --parameter-overrides Stage=staging AlertEmail=${{ secrets.ALERT_EMAIL }}
+          --resolve-s3
+          --capabilities CAPABILITY_IAM
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset
+      - name: Smoke test
+        run: |
+          API_URL=$(aws cloudformation describe-stacks --stack-name billguard-staging --region eu-west-2 \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          bash scripts/smoke_test.sh "$API_URL"
